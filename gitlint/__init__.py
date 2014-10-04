@@ -40,6 +40,7 @@ Options:
 from __future__ import unicode_literals
 
 import codecs
+from functools import partial
 import json
 import os
 import os.path
@@ -213,15 +214,19 @@ def main(argv, stdout=sys.stdout, stderr=sys.stderr):
     gitlint_config = get_config(repository_root)
     json_result = {}
 
-    error = termcolor.colored('ERROR', 'red', attrs=('bold',))
-    skipped = termcolor.colored('SKIPPED', 'yellow', attrs=('bold',))
+    flag_formatters = {
+        'ERROR': partial(termcolor.colored, color='red'),
+        'SKIPPED': partial(termcolor.colored, color='yellow'),
+        'OK': partial(termcolor.colored, color='green'),
+        'FAILURE': partial(termcolor.colored, color='red'),
+    }
 
     for filename in sorted(modified_files.keys()):
         rel_filename = os.path.relpath(filename)
         if not json_output:
-            stdout.write('Linting file: %s%s' %
-                         (termcolor.colored(rel_filename, attrs=('bold',)),
-                          linesep))
+            stdout.write('Linting file: %s ' % termcolor.colored(rel_filename, attrs=('bold',)))
+            stdout.flush()
+
         if arguments['--force']:
             modified_lines = None
         else:
@@ -233,33 +238,45 @@ def main(argv, stdout=sys.stdout, stderr=sys.stderr):
             filename, modified_lines, gitlint_config)
         result = result[filename]
 
-        output = ''
         if result.get('error'):
-            output += os.linesep.join(
-                '%s: %s' % (error, reason) for reason in result.get('error')
-            )
             linter_not_found = True
-        if result.get('skipped'):
-            output += os.linesep.join(
-                '%s: %s' % (skipped, reason) for reason in result.get('skipped')
-            )
-        if result.get('comments', []) == []:
-            if not output:
-                output += termcolor.colored('OK', 'green', attrs=('bold',))
-        else:
+
+        if result.get('comments'):
             files_with_problems += 1
-            messages = []
             for data in result['comments']:
-                formatted_message = format_comment(data)
-                messages.append(formatted_message)
-                data['formatted_message'] = formatted_message
-            output += os.linesep.join(messages)
+                data['formatted_message'] = format_comment(data)
 
         if json_output:
             json_result[filename] = result
         else:
-            stdout.write(output)
+            result_flags = [flagtype
+                            for flagtype in ('ERROR', 'SKIPPED')
+                            if result.get(flagtype.lower())]
+
+            if not result_flags and not result.get('comments'):
+                result_flags.append('OK')
+            elif result.get('comments'):
+                result_flags.append('FAILURE')
+
+            stdout.write(','.join(
+                flag_formatters[flagtype](flagtype, attrs=('bold',))
+                for flagtype in result_flags))
+            stdout.flush()
+
+            detail_lines = []
+            for flagtype in ('ERROR', 'SKIPPED'):
+                for detail_line in result.get(flagtype.lower(), []):
+                    detail_lines.append(flag_formatters[flagtype](detail_line))
+
+            for data in result.get('comments', []):
+                detail_lines.append(
+                    flag_formatters['FAILURE'](data['formatted_message']))
+
+            if detail_lines:
+                stdout.write(linesep)
+                stdout.write(linesep.join(detail_lines))
             stdout.write(linesep + linesep)
+            stdout.flush()
 
     if json_output:
         # Hack to convert to unicode, Python3 returns unicode, wheres Python2
