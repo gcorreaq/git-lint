@@ -41,6 +41,9 @@ setup(
         'pyyaml',
         'termcolor',
         'docopt',
+        # linters used by venmo:
+        'flake8',
+        'pylint',
         # Packages specific to linters. They are optional, but to ease the use
         # we prefer to put them here.
         'html-linter',
