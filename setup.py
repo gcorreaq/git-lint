@@ -18,7 +18,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='git-lint',
-    version='1.0.6.1',
+    version='1.0.6.2',
     description='Git Lint',
     long_description=open('README.rst').read(),
     author='Sebastian Kreft',
@@ -41,6 +41,9 @@ setup(
         'pyyaml',
         'termcolor',
         'docopt',
+        # linters used by venmo:
+        'flake8',
+        'pylint',
         # Packages specific to linters. They are optional, but to ease the use
         # we prefer to put them here.
         'html-linter',
